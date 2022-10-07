@@ -6,6 +6,7 @@ import numpy as np
 #
 # General Purpose Functions
 #   can_float                Returns True if input can be converted to a float, otherwise returns False
+#   spddir_to_uwdvwd         Converts (spd,dir) to (u,v)
 #
 # Debufr Parsing Functions
 #
@@ -22,6 +23,11 @@ def can_float(element: any) -> bool:
         return True
     except ValueError:
         return False
+
+def spddir_to_uwdvwd(spd,ang):
+    uwd=-spd*np.sin(ang*(np.pi/180.))
+    vwd=-spd*np.cos(ang*(np.pi/180.))
+    return uwd, vwd
 
 def compute_base_bufrdict(filename,tags):
     # Given a debufr file and a list of tags, this function will retrieve a vector of
