@@ -16,6 +16,7 @@ import cartopy.crs as ccrs
 #   can_float                Returns True if input can be converted to a float, otherwise returns False
 #   spddir_to_uwdvwd         Converts (spd,dir) to (u,v)
 #   truncate_colorbar        Returns colorbar only covering subspace within [0. 1.] of input colorbar
+#   key_substr_search        Returns dictionary key that contains substring, or None if no key contains substring
 #
 # Debufr Parsing Functions
 #
@@ -55,6 +56,13 @@ def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
         'trunc({n},{a:.2f},{b:.2f})'.format(n=cmap.name, a=minval, b=maxval),
         cmap(np.linspace(minval, maxval, n)))
     return new_cmap
+
+def key_substr_search(keys,substr):
+    selected_key=None
+    for key in keys:
+        if substr in key:
+            selected_key=key
+    return selected_key
 
 def compute_base_bufrdict(filename,tags):
     # Given a debufr file and a list of tags, this function will retrieve a vector of
@@ -148,22 +156,32 @@ def compute_quality_info(bdict):
     #   bdict: dictionary containing TYPE, SAID, OGCE, GNAP, and PCCF values/replications
     # OUTPUTS
     #   bdict: modified dictionary containing new QIFN, QIFY, and EE values
-    nobs=np.size(bdict['SAID'])
+    #
+    # NOTES:
+    #        Some ob-types use 'GNAPS' instead of GNAP, so we will use whatever key *includes*
+    #        'GNAP' rather than search for a GNAP key specifically.
+    key=key_substr_search(bdict.keys(),'SAID')
+    nobs=np.shape(bdict[key])[0]
     # Initialize output vectors
     qify_vec=np.nan*np.ones((nobs,))
     qifn_vec=np.nan*np.ones((nobs,))
     ee_vec=np.nan*np.ones((nobs,))
     # Loop through obs, find quality info based on SAID and (BUFR tank) TYPE
     for i in range(nobs):
-        said=bdict['SAID'][i]
-        ogce=bdict['OGCE'][i]
-        gnap=bdict['GNAP'][i]
-        pccf=bdict['PCCF'][i]
-        tank=bdict['TYPE'][i]
+        key=key_substr_search(bdict.keys(),'SAID')
+        said=bdict[key][i]
+        key=key_substr_search(bdict.keys(),'OGCE')
+        ogce=bdict[key][i]
+        key=key_substr_search(bdict.keys(),'GNAP')
+        gnap=bdict[key][i]
+        key=key_substr_search(bdict.keys(),'PCCF')
+        pccf=bdict[key][i]
+        key=key_substr_search(bdict.keys(),'TYPE')
+        tank=bdict[key][i]
         qify=1.0e+10
         qifn=1.0e+10
         ee=1.0e+10
-        if (np.isin(tank,['NC005064','NC005065','NC005066']))&((said<80.)&(said>=50.)): # EUMETSAT range
+        if any((np.isin(tank,['NC005064','NC005065','NC005066']))&((said<80.)&(said>=50.))): # EUMETSAT range
             for j in range(3,9):
                 if (qify<105.)&(qifn<105.)&(ee<105.): break
                 if (~np.isnan(gnap[j]))&(~np.isnan(pccf[j])):
@@ -173,7 +191,7 @@ def compute_quality_info(bdict):
                         qifn=pccf[j]
                     elif (gnap[j]==3.)&(ee>105.):
                         ee=pccf[j]
-        if (np.isin(tank,['NC005044','NC005045','NC005046']))&((said<199.)&(said>=100.)): # JMA range
+        if any((np.isin(tank,['NC005044','NC005045','NC005046']))&((said<199.)&(said>=100.))): # JMA range
             for j in range(3,9):
                 if (qify<105.)&(qifn<105.)&(ee<105.): break
                 if (~np.isnan(gnap[j]))&(~np.isnan(pccf[j])):
@@ -183,7 +201,7 @@ def compute_quality_info(bdict):
                         qifn=pccf[j]
                     elif (gnap[j]==103.)&(ee>105.):
                         ee=pccf[j]
-        if (np.isin(tank,['NC005010','NC005011','NC005012']))&((said<299.)&(said>=250.)): # NESDIS range
+        if any((np.isin(tank,['NC005010','NC005011','NC005012']))&((said<299.)&(said>=250.))): # NESDIS range
             for j in range(0,8):
                 if (qify<105.)&(qifn<105.)&(ee<105.): break
                 if (~np.isnan(gnap[j]))&(~np.isnan(pccf[j])):
@@ -193,7 +211,7 @@ def compute_quality_info(bdict):
                         qifn=pccf[j]
                     elif (gnap[j]==4.)&(ee>105.):
                         ee=pccf[j]
-        if (np.isin(tank,['NC005070','NC005071']))&((said<799.)&(said>=700.)): # MODIS range
+        if any((np.isin(tank,['NC005070','NC005071']))&((said<799.)&(said>=700.))): # MODIS range
             for j in range(0,8):
                 if (qify<105.)&(qifn<105.)&(ee<105.): break
                 if (~np.isnan(gnap[j]))&(~np.isnan(pccf[j])):
@@ -203,7 +221,7 @@ def compute_quality_info(bdict):
                         qifn=pccf[j]
                     elif (gnap[j]==4.)&(ee>105.):
                         ee=pccf[j]
-        if (np.isin(tank,['NC005080']))&((said==10.)|((said<=223.)&(said>=200.))): # AVHRR range
+        if any((np.isin(tank,['NC005080']))&((said==10.)|((said<=223.)&(said>=200.)))): # AVHRR range
             for j in range(0,8):
                 if (qify<105.)&(qifn<105.)&(ee<105.): break
                 if (~np.isnan(gnap[j]))&(~np.isnan(pccf[j])):
@@ -213,7 +231,7 @@ def compute_quality_info(bdict):
                         qifn=pccf[j]
                     elif (gnap[j]==4.)&(ee>105.):
                         ee=pccf[j]
-        if (np.isin(tank,['NC005019']))&((said<=299.)&(said>=250.)): # NESDIS (swIR) range
+        if any((np.isin(tank,['NC005019']))&((said<=299.)&(said>=250.))): # NESDIS (swIR) range
             for j in range(0,7):
                 if (qify<105.)&(qifn<105.)&(ee<105.): break
                 if (~np.isnan(gnap[j]))&(~np.isnan(pccf[j])):
@@ -223,11 +241,11 @@ def compute_quality_info(bdict):
                         qifn=pccf[j]
                     elif (gnap[j]==4.)&(ee>105.):
                         ee=pccf[j]
-        if (np.isin(tank,['NC005072']))&((said==854.)): # LEOGEO range
+        if any((np.isin(tank,['NC005072']))&((said==854.))): # LEOGEO range
             qify=pccf[0]
             qifn=pccf[1]
             ee=pccf[2]
-        if (np.isin(tank,['NC005090']))&((said<=250.)&(said>=200.)): # VIIRS range
+        if any((np.isin(tank,['NC005090']))&((said<=250.)&(said>=200.))): # VIIRS range
             for j in range(0,7):
                 if (qify<105.)&(qifn<105.)&(ee<105.): break
                 if (~np.isnan(gnap[j]))&(~np.isnan(pccf[j])):
@@ -237,13 +255,13 @@ def compute_quality_info(bdict):
                         qifn=pccf[j]
                     elif (gnap[j]==4.)&(ee>105.):
                         ee=pccf[j]
-        if (np.isin(tank,['NC005067','NC005068','NC005069']))&((said<80.)&(said>=50.)): # (NEW) EUMETSAT range
+        if any((np.isin(tank,['NC005067','NC005068','NC005069']))&((said<80.)&(said>=50.))): # (NEW) EUMETSAT range
             print('cannot currently process (NEW) EUMETSAT winds')
-        if (np.isin(tank,['NC005081']))&((said<10.)): # NESDIS METOP-B/C range
+        if any((np.isin(tank,['NC005081']))&((said<10.))): # NESDIS METOP-B/C range
             print('cannot currently process NESDIS METOP-B/C winds')
-        if (np.isin(tank,['NC005091']))&((said<=250.)&(said>=200.)): # VIIRS NPP/N20 range
+        if any((np.isin(tank,['NC005091']))&((said<=250.)&(said>=200.))): # VIIRS NPP/N20 range
             print('cannot currently process VIIRS NPP/N20 winds')
-        if (np.isin(tank,['NC005030','NC005031','NC005032','NC005034','NC005039']))&((said<=299.)&(said>=250.)): # (NEW) NESDIS GOES-R range
+        if any((np.isin(tank,['NC005030','NC005031','NC005032','NC005034','NC005039']))&((said<=299.)&(said>=250.))): # (NEW) NESDIS GOES-R range
             print('cannot currently process (NEW) NESDIS GOES-R winds')
         # Fill vectors with data, or leave as nan if no data is available
         if (qify<105.): qify_vec[i]=qify
@@ -382,6 +400,9 @@ def ob_hist_spddirqi(ob_spd,ob_dir,ob_qi,spd_rng,dir_rng,qi_thresh,figax1,figax2
     #   figreturn: returned axes
     # DEPENDENCIES: matplotlib, numpy
     #
+    # NOTES:
+    #       Sometimes QI is all np.nan values, in which case we will present a blank pie-chart
+    #
     # Generate windrose (polar histogram)
     ax=figax1
     ax.set_theta_zero_location('S')
@@ -400,10 +421,12 @@ def ob_hist_spddirqi(ob_spd,ob_dir,ob_qi,spd_rng,dir_rng,qi_thresh,figax1,figax2
     # Generate pi-chart
     ax=figax3
     labels=['qi>={:.0f}'.format(qi_thresh),'qi<{:.0f}'.format(qi_thresh)]
-    sizes=[np.size(np.where(ob_qi>=qi_thresh)),np.size(np.where(ob_qi<qi_thresh))]
-    ax.pie(sizes, labels=labels, autopct='%1.1f%%',shadow=False, startangle=90,colors=['#00C5FF','#FF2D2D'])
-    ax.axis('equal')
-    ax.set_title('quality indicator')
+    y=np.where(np.isnan(ob_qi)==False)
+    if (np.size(y)>0):
+        sizes=[np.size(np.where(ob_qi[y]>=qi_thresh)),np.size(np.where(ob_qi[y]<qi_thresh))]
+        ax.pie(sizes, labels=labels, autopct='%1.1f%%',shadow=False, startangle=90,colors=['#00C5FF','#FF2D2D'])
+        ax.axis('equal')
+        ax.set_title('quality indicator')
     # Return
     return figax1,figax2,figax3
 
